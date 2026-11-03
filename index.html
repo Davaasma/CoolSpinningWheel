@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CoolSpinningWheel</title>
+<style>
+:root{--ink:#202238;--muted:#697087;--panel:#fff;--bg:#f5f6fb;--accent:#7257e8}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(circle at 10% 5%,#e6e0ff 0,transparent 32%),radial-gradient(circle at 90% 20%,#ffe4ef 0,transparent 28%),var(--bg);color:var(--ink)}
+header{text-align:center;padding:30px 16px 12px}
+h1{margin:0;font-size:clamp(2rem,7vw,3.4rem);letter-spacing:-.06em}
+h1 span{color:var(--accent)}
+header p{margin:8px 0;color:var(--muted)}
+main{width:min(1100px,94vw);margin:18px auto 48px;display:grid;grid-template-columns:minmax(280px,1.2fr) minmax(280px,.8fr);gap:22px;align-items:start}
+.card{background:rgba(255,255,255,.9);border:1px solid #e8e8f2;border-radius:24px;padding:22px;box-shadow:0 16px 45px #33314a12}
+.wheel-area{display:flex;flex-direction:column;align-items:center;gap:18px}
+.wheel-wrap{position:relative;width:min( min(70vw,520px),100%);aspect-ratio:1;display:grid;place-items:center;margin-top:6px}
+canvas{width:100%;height:100%;filter:drop-shadow(0 12px 16px #24213a22)}
+.pointer{position:absolute;top:-8px;left:50%;transform:translateX(-50%);z-index:2;width:0;height:0;border-left:19px solid transparent;border-right:19px solid transparent;border-top:39px solid #26243b;filter:drop-shadow(0 3px 2px #0003)}
+.hub{position:absolute;width:13%;height:13%;border-radius:50%;background:linear-gradient(145deg,#fff,#dedcf1);border:7px solid #292741;box-shadow:0 3px 8px #0003;pointer-events:none}
+button{border:0;border-radius:14px;padding:13px 18px;font:700 1rem inherit;cursor:pointer;transition:transform .15s,opacity .15s}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.primary{background:linear-gradient(135deg,#7658ef,#a44ee8);color:white;box-shadow:0 8px 18px #7957e944;padding:15px 38px;font-size:1.12rem}
+.secondary{background:#eeecfa;color:#5544a7}
+.danger{background:#fff0f0;color:#b13d52;padding:8px 11px;font-size:.86rem}
+.controls h2{margin:0 0 6px;font-size:1.35rem}
+.hint{color:var(--muted);font-size:.92rem;margin:0 0 16px}
+textarea{width:100%;min-height:210px;resize:vertical;border:1.5px solid #deddec;border-radius:14px;padding:13px;font:inherit;line-height:1.6;outline:none}
+textarea:focus{border-color:#927be9;box-shadow:0 0 0 3px #927be922}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.row button{flex:1}
+.count{color:var(--muted);font-size:.88rem;margin-top:12px}
+.result{margin-top:18px;padding:16px;border-radius:16px;background:linear-gradient(135deg,#f2efff,#fff0f6);text-align:center;min-height:90px;display:grid;place-content:center}
+.result small{color:var(--muted);font-weight:650}
+#winner{font-size:1.55rem;font-weight:850;overflow-wrap:anywhere}
+footer{text-align:center;color:#8a8da0;font-size:.82rem;padding:0 16px 25px}
+@media(max-width:760px){main{grid-template-columns:1fr}.wheel-wrap{width:min(82vw,480px)}.card{padding:18px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Cool<span>SpinningWheel</span></h1>
+  <p>Dein Glücksrad. Deine Auswahl. Ein zufälliger Gewinner!</p>
+</header>
+<main>
+  <section class="card wheel-area" aria-label="Glücksrad">
+    <div class="wheel-wrap">
+      <div class="pointer"></div>
+      <canvas id="wheel" width="900" height="900" aria-label="Buntes Glücksrad"></canvas>
+      <div class="hub"></div>
+    </div>
+    <button class="primary" id="spin">DREHEN!</button>
+  </section>
+  <section class="card controls">
+    <h2>Deine Einträge</h2>
+    <p class="hint">Schreibe einen Namen oder Begriff pro Zeile. Du kannst die Beispiele einfach ersetzen.</p>
+    <textarea id="entries" aria-label="Einträge">David
+Alex
+Sam
+Max
+Lena
+Mia</textarea>
+    <div class="row">
+      <button class="secondary" id="update">Rad aktualisieren</button>
+      <button class="secondary" id="shuffle">Mischen</button>
+    </div>
+    <div class="count" id="count">6 Einträge</div>
+    <div class="result" aria-live="polite">
+      <small>DER GEWINNER IST</small>
+      <div id="winner">Wer wird es?</div>
+    </div>
+  </section>
+</main>
+<footer>Viel Spaß beim Drehen!</footer>
+<script>
+const canvas=document.getElementById('wheel'),ctx=canvas.getContext('2d');
+const input=document.getElementById('entries'),spinBtn=document.getElementById('spin');
+const winnerEl=document.getElementById('winner'),countEl=document.getElementById('count');
+let items=[],rotation=0,spinning=false;
+const colors=['#ff6b6b','#ffad5a','#ffe066','#75d89b','#4ecdc4','#54a0ff','#7c83fd','#b57bee','#f783ac','#ff8fab','#8bd3dd','#a0c4ff'];
+function randomColors(n){return Array.from({length:n},()=>`hsl(${Math.floor(Math.random()*360)} 82% 62%)`)}
+let palette=[];
+function readItems(){return input.value.split('\n').map(x=>x.trim()).filter(Boolean)}
+function draw(){
+ const n=items.length;ctx.clearRect(0,0,900,900);
+ if(!n){ctx.fillStyle='#e9e7f4';ctx.beginPath();ctx.arc(450,450,420,0,Math.PI*2);ctx.fill();ctx.fillStyle='#555';ctx.font='bold 34px system-ui';ctx.textAlign='center';ctx.fillText('Füge Einträge hinzu',450,460);return}
+ const arc=Math.PI*2/n;
+ for(let i=0;i<n;i++){
+  const start=rotation+i*arc-Math.PI/2,end=start+arc;
+  ctx.beginPath();ctx.moveTo(450,450);ctx.arc(450,450,420,start,end);ctx.closePath();
+  ctx.fillStyle=palette[i%palette.length];ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=5;ctx.stroke();
+  ctx.save();ctx.translate(450,450);ctx.rotate(start+arc/2);
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  const fontSize=Math.max(15,Math.min(31,Math.floor(390/n*1.15)));
+  ctx.font=`800 ${fontSize}px system-ui`;ctx.fillStyle='#202238';
+  ctx.shadowColor='rgba(255,255,255,.45)';ctx.shadowBlur=3;
+  let label=items[i];const max=330;
+  while(ctx.measureText(label).width>max&&label.length>3)label=label.slice(0,-2)+'…';
+  ctx.fillText(label,385,0);ctx.restore();
+ }
+ ctx.beginPath();ctx.arc(450,450,420,0,Math.PI*2);ctx.strokeStyle='#292741';ctx.lineWidth=13;ctx.stroke();
+}
+function update(){if(spinning)return;items=readItems();palette=randomColors(Math.max(items.length,1));countEl.textContent=`${items.length} Eintrag${items.length===1?'':'e'}`;winnerEl.textContent=items.length?'Wer wird es?':'Füge Einträge hinzu';draw();spinBtn.disabled=items.length<2}
+function winnerIndex(){const n=items.length,arc=2*Math.PI/n;let a=((Math.PI*2-(rotation%(Math.PI*2)))%(Math.PI*2));return Math.floor(a/arc)%n}
+document.getElementById('update').addEventListener('click',update);
+document.getElementById('shuffle').addEventListener('click',()=>{if(spinning)return;let a=readItems();for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}input.value=a.join('\n');update()});
+spinBtn.addEventListener('click',()=>{
+ if(spinning||items.length<2)return;
+ spinning=true;spinBtn.disabled=true;winnerEl.textContent='Das Rad dreht sich…';
+ const start=rotation,target=rotation+(Math.PI*2*(5+Math.random()*4))+Math.random()*Math.PI*2;
+ const duration=4800,begin=performance.now();
+ function frame(now){let t=Math.min(1,(now-begin)/duration),ease=1-Math.pow(1-t,4);rotation=start+(target-start)*ease;draw();
+  if(t<1)requestAnimationFrame(frame);else{rotation%=Math.PI*2;spinning=false;const idx=winnerIndex();winnerEl.textContent=items[idx];spinBtn.disabled=items.length<2}}
+ requestAnimationFrame(frame);
+});
+update();
+</script>
+</body>
+</html>
