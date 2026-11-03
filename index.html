@@ -109,7 +109,7 @@ function normalize(angle) {
 function pointedIndex() {
   if (!names.length) return -1;
   const slice = Math.PI * 2 / names.length;
-  return Math.floor(normalize(-Math.PI / 2 - rotation) / slice);
+  return Math.floor(normalize(-rotation) / slice);
 }
 
 function draw() {
