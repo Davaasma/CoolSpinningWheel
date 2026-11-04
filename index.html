@@ -1,127 +1,205 @@
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CoolSpinningWheel</title>
+
 <style>
 * { box-sizing: border-box; }
+
 body {
   margin: 0;
-  min-height: 100vh;
-  background: linear-gradient(135deg,#100b2c,#24105a,#071b40);
-  color: white;
-  font-family: Arial,sans-serif;
-  text-align: center;
   padding: 25px 12px;
+  min-height: 100vh;
+  text-align: center;
+  font-family: Arial, sans-serif;
+  color: white;
+  background: linear-gradient(135deg, #10051f, #25105b, #10051f);
 }
-h1 { font-size: 32px; }
+
+h1 {
+  font-size: 38px;
+  margin: 25px 0 35px;
+}
+
 #currentName {
-  font-size: 36px;
+  color: #ffd34e;
+  font-size: 42px;
   font-weight: bold;
-  color: #ffd65a;
-  margin: 18px 0;
-  min-height: 44px;
+  min-height: 55px;
+  margin-bottom: 18px;
+  text-shadow: 0 0 15px #ffbf38;
 }
-.wheel-container {
+
+.wheel-wrapper {
+  width: min(92vw, 600px);
+  aspect-ratio: 1;
+  margin: 0 auto 35px;
   position: relative;
-  width: min(88vw,430px);
-  margin: 20px auto;
+  filter: drop-shadow(0 0 18px #9c4dff);
 }
+
 canvas {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
   border-radius: 50%;
-  box-shadow: 0 0 30px #8c55ff;
 }
+
 .pointer {
   position: absolute;
-  top: -12px;
+  z-index: 5;
   left: 50%;
-  transform: translateX(-50%);
+  top: -18px;
   width: 0;
   height: 0;
-  border-left: 19px solid transparent;
-  border-right: 19px solid transparent;
-  border-top: 38px solid #ffcf36;
-  z-index: 2;
+  border-left: 22px solid transparent;
+  border-right: 22px solid transparent;
+  border-top: 43px solid #ffd43b;
+  transform: translateX(-50%);
+  transform-origin: 50% 0;
+  filter: drop-shadow(0 3px 5px #000);
 }
+
+.pointer.tap {
+  animation: pointerTap 110ms ease-out;
+}
+
+@keyframes pointerTap {
+  0% { transform: translateX(-50%) rotate(0deg); }
+  45% { transform: translateX(-50%) rotate(23deg); }
+  100% { transform: translateX(-50%) rotate(0deg); }
+}
+
 button {
-  border: 0;
-  border-radius: 12px;
-  padding: 13px 18px;
-  margin: 6px;
-  font-size: 17px;
+  border: none;
+  border-radius: 22px;
+  padding: 19px 30px;
+  margin: 8px;
+  font-size: 23px;
   font-weight: bold;
   color: white;
-  background: #7545e8;
+  background: #7542e8;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #48209e;
 }
+
+button:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #48209e;
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+#spinButton {
+  font-size: 27px;
+  padding: 20px 42px;
+}
+
 input {
-  padding: 13px;
-  border-radius: 10px;
-  border: 0;
-  font-size: 16px;
-  width: 65%;
-  max-width: 250px;
-}
-#names {
-  margin: 20px auto;
-  max-width: 350px;
-  line-height: 2;
+  display: block;
+  width: min(90%, 430px);
+  margin: 20px auto 8px;
+  padding: 20px;
   font-size: 20px;
+  border: none;
+  border-radius: 15px;
+}
+
+#nameList {
+  margin: 35px auto;
+  padding: 0;
+  list-style: none;
+  font-size: 25px;
+  max-width: 400px;
+}
+
+#nameList li {
+  padding: 9px;
+  border-bottom: 1px solid #ffffff30;
 }
 </style>
 </head>
+
 <body>
 
 <h1>CoolSpinningWheel</h1>
-<div id="currentName">David</div>
 
-<div class="wheel-container">
-  <div class="pointer"></div>
+<div id="currentName">Bereit?</div>
+
+<div class="wheel-wrapper">
+  <div class="pointer" id="pointer"></div>
   <canvas id="wheel" width="600" height="600"></canvas>
 </div>
 
-<button onclick="spin()">DREHEN</button>
-<br>
-<input id="nameInput" placeholder="Name eingeben">
+<button id="spinButton" onclick="spin()">DREHEN</button>
+
+<input id="nameInput" placeholder="Name eingeben" maxlength="22">
 <button onclick="addName()">Hinzufügen</button>
+
 <br>
+
 <button onclick="removeWinner()">Gewinner entfernen</button>
 <button onclick="clearNames()">Alle löschen</button>
-<div id="names"></div>
+
+<ol id="nameList"></ol>
 
 <script>
 const canvas = document.getElementById("wheel");
 const ctx = canvas.getContext("2d");
 
+const currentName = document.getElementById("currentName");
+const pointer = document.getElementById("pointer");
+const spinButton = document.getElementById("spinButton");
+
 let names = ["David", "Alex", "Max", "Leon", "Tom"];
+let colors = [
+  "#6541e8",
+  "#2878e8",
+  "#e8a526",
+  "#a52bd9",
+  "#159f9b",
+  "#e34d76",
+  "#16a5d5"
+];
+
 let rotation = 0;
 let spinning = false;
-
-const colors = ["#6545e8", "#2778e8", "#e5a52e", "#a43fe0", "#16a6a0"];
+let winnerIndex = -1;
+let audioContext = null;
+let previousTick = 0;
 
 function normalize(angle) {
-  return ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  return ((angle % (Math.PI * 2)) + Math.PI * 2)
+    % (Math.PI * 2);
 }
 
 function pointedIndex() {
   if (!names.length) return -1;
+
   const slice = Math.PI * 2 / names.length;
   return Math.floor(normalize(-rotation) / slice);
 }
 
-function draw() {
+function drawWheel() {
+  const center = 300;
+  const radius = 285;
+
   ctx.clearRect(0, 0, 600, 600);
 
   if (!names.length) {
+    ctx.beginPath();
+    ctx.arc(center, center, radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#29203f";
+    ctx.fill();
     ctx.fillStyle = "white";
     ctx.font = "bold 30px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("Keine Namen", 300, 310);
-    document.getElementById("currentName").textContent = "–";
-    updateList();
+    ctx.fillText("Namen hinzufügen", center, center);
     return;
   }
 
@@ -132,125 +210,238 @@ function draw() {
     const end = start + slice;
 
     ctx.beginPath();
-    ctx.moveTo(300, 300);
-    ctx.arc(300, 300, 285, start, end);
+    ctx.moveTo(center, center);
+    ctx.arc(center, center, radius, start, end);
     ctx.closePath();
+
     ctx.fillStyle = colors[i % colors.length];
     ctx.fill();
+
     ctx.strokeStyle = "white";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.stroke();
 
+    // Namen bei 180: näher an der Mitte jedes Feldes
+    const middle = start + slice / 2;
+
     ctx.save();
-    ctx.translate(300, 300);
-    ctx.rotate(start + slice / 2);
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
+    ctx.translate(center, center);
+    ctx.rotate(middle);
+    ctx.translate(180, 0);
+
+    // Namen auch auf der unteren Hälfte lesbar halten
+    if (Math.cos(middle) < 0) {
+      ctx.rotate(Math.PI);
+    }
+
     ctx.fillStyle = "white";
-    ctx.font = "bold 35px Arial";
-    ctx.shadowColor = "#000";
-    ctx.shadowBlur = 4;
-    ctx.fillText(name,130,0);
+    ctx.font = "bold 30px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "#222";
+    ctx.shadowBlur = 5;
+    ctx.fillText(name, 0, 0, 190);
     ctx.restore();
   });
 
-  document.getElementById("currentName").textContent =
-    names[pointedIndex()];
-  updateList();
+  // Außenring
+  ctx.beginPath();
+  ctx.arc(center, center, radius, 0, Math.PI * 2);
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 7;
+  ctx.stroke();
+
+  // Mittelpunkt
+  ctx.beginPath();
+  ctx.arc(center, center, 12, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
 }
 
-function updateList() {
-  document.getElementById("names").innerHTML =
-    names.map((name, i) => `${i + 1}. ${name}`).join("<br>");
-}
+function renderList() {
+  const list = document.getElementById("nameList");
+  list.innerHTML = "";
 
-function spin() {
-  if (spinning || names.length < 2) return;
-  spinning = true;
+  names.forEach((name) => {
+    const li = document.createElement("li");
+    li.textContent = name;
+    list.appendChild(li);
+  });
 
-  const startRotation = rotation;
-  const extra = Math.PI * 2 * (5 + Math.random() * 5);
-  const target = startRotation + extra + Math.random() * Math.PI * 2;
-  const duration = 5000;
-  const startTime = performance.now();
-
-  function animate(now) {
-    const progress = Math.min((now - startTime) / duration, 1);
-    const eased = 1 - Math.pow(1 - progress, 4);
-    rotation = startRotation + (target - startRotation) * eased;
-    draw();
-
-    if (progress < 1) {
-      requestAnimationFrame(animate);
-    } else {
-      spinning = false;
-      draw();
-      confetti();
-    }
-  }
-  requestAnimationFrame(animate);
+  drawWheel();
 }
 
 function addName() {
   const input = document.getElementById("nameInput");
   const name = input.value.trim();
-  if (!name) return;
+
+  if (!name || spinning) return;
+
   names.push(name);
   input.value = "";
-  draw();
+  renderList();
+  currentName.textContent = "Bereit?";
 }
 
 function removeWinner() {
-  if (!names.length || spinning) return;
-  const index = pointedIndex();
-  names.splice(index, 1);
+  if (winnerIndex < 0 || spinning || !names.length) return;
+
+  names.splice(winnerIndex, 1);
+  winnerIndex = -1;
   rotation = 0;
-  draw();
+  currentName.textContent = "Bereit?";
+  renderList();
 }
 
 function clearNames() {
   if (spinning) return;
+
   names = [];
+  winnerIndex = -1;
   rotation = 0;
-  draw();
+  currentName.textContent = "Bereit?";
+  renderList();
 }
 
-function confetti() {
-  const pieces = [];
-  for (let i = 0; i < 100; i++) {
-    pieces.push({
-      x: Math.random() * window.innerWidth,
-      y: -20 - Math.random() * 300,
-      speed: 2 + Math.random() * 5,
-      size: 5 + Math.random() * 7,
-      color: colors[i % colors.length]
-    });
-  }
+// Ein kurzer mechanischer Klick
+function clickSound() {
+  if (!audioContext) return;
 
-  const overlay = document.createElement("canvas");
-  overlay.style.cssText =
-    "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:10";
-  overlay.width = window.innerWidth;
-  overlay.height = window.innerHeight;
-  document.body.appendChild(overlay);
-  const c = overlay.getContext("2d");
-  let frames = 0;
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
 
-  function animateConfetti() {
-    c.clearRect(0, 0, overlay.width, overlay.height);
-    pieces.forEach(p => {
-      p.y += p.speed;
-      c.fillStyle = p.color;
-      c.fillRect(p.x, p.y, p.size, p.size);
-    });
-    frames++;
-    if (frames < 100) requestAnimationFrame(animateConfetti);
-    else overlay.remove();
-  }
-  animateConfetti();
+  oscillator.type = "square";
+  oscillator.frequency.setValueAtTime(1100, audioContext.currentTime);
+  oscillator.frequency.exponentialRampToValueAtTime(
+    350, audioContext.currentTime + 0.025
+  );
+
+  gain.gain.setValueAtTime(0.12, audioContext.currentTime);
+  gain.gain.exponentialRampToValueAtTime(
+    0.001, audioContext.currentTime + 0.035
+  );
+
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+
+  oscillator.start();
+  oscillator.stop(audioContext.currentTime + 0.04);
 }
 
-draw();
+// Kleiner Schnapp-Klicker am Zeiger
+function tapPointer() {
+  pointer.classList.remove("tap");
+  void pointer.offsetWidth;
+  pointer.classList.add("tap");
+  clickSound();
+}
+
+function spin() {
+  if (spinning || names.length < 2) {
+    if (names.length < 2) {
+      currentName.textContent = "Mindestens 2 Namen!";
+    }
+    return;
+  }
+
+  // Ton erst nach dem Antippen starten
+  if (!audioContext) {
+    audioContext = new (
+      window.AudioContext || window.webkitAudioContext
+    )();
+  }
+
+  if (audioContext.state === "suspended") {
+    audioContext.resume();
+  }
+
+  spinning = true;
+  spinButton.disabled = true;
+  winnerIndex = -1;
+
+  const startRotation = rotation;
+  const extraTurns = 5 + Math.random() * 3;
+  const endRotation = startRotation + extraTurns * Math.PI * 2
+    + Math.random() * Math.PI * 2;
+
+  const duration = 7200;
+  const startTime = performance.now();
+
+  const slice = Math.PI * 2 / names.length;
+  previousTick = Math.floor(rotation / slice);
+
+  function animate(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+
+    // Gleichmäßiges Auslaufen
+    const eased = 1 - Math.pow(1 - progress, 4);
+
+    rotation = startRotation +
+      (endRotation - startRotation) * eased;
+
+    // Ein Klick bei jedem vorbeiziehenden Feld
+    const currentTick = Math.floor(rotation / slice);
+
+    if (currentTick > previousTick) {
+      const count = Math.min(currentTick - previousTick, 12);
+      for (let i = 0; i < count; i++) {
+        tapPointer();
+      }
+    }
+
+    previousTick = currentTick;
+
+    drawWheel();
+
+    const index = pointedIndex();
+    if (index >= 0) {
+      currentName.textContent = names[index];
+    }
+
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      finishSpin();
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
+function finishSpin() {
+  spinning = false;
+  spinButton.disabled = false;
+
+  winnerIndex = pointedIndex();
+
+  if (winnerIndex >= 0) {
+    currentName.textContent = "🏆 " + names[winnerIndex] + " 🏆";
+  }
+
+  // Kleiner Abschluss-Ton
+  if (audioContext) {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(660, audioContext.currentTime);
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime + 0.12);
+
+    gain.gain.setValueAtTime(0.15, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(
+      0.001, audioContext.currentTime + 0.35
+    );
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.36);
+  }
+}
+
+renderList();
 </script>
+
 </body>
 </html>
